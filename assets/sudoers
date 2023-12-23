@@ -1,0 +1,6 @@
+Cmnd_Alias NAGIOS = /usr/bin/dmesg --json --decode,
+
+Defaults:nagios !requiretty
+Defaults!NAGIOS !syslog
+
+nagios ALL = NOPASSWD: NAGIOS
