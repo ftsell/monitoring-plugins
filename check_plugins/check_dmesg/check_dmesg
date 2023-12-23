@@ -13,10 +13,13 @@ _log = logging.getLogger("nagiosplugin")
 class KernelLog(nagiosplugin.Resource):
     def probe(self):
         _log.debug("reading kernel logs with dmesg")
-        msgs = subprocess.check_output(["sudo", "-n", "/usr/bin/dmesg", "--json", "--decode"], encoding="UTF-8")
+        msgs = subprocess.check_output(
+            ["sudo", "-n", "/usr/bin/dmesg", "--json", "--decode"], encoding="UTF-8"
+        )
         _log.debug("parsing dmesg output")
         return [
-            nagiosplugin.Metric("msg", msg, context="severities") for msg in json.loads(msgs)["dmesg"]
+            nagiosplugin.Metric("msg", msg, context="severities")
+            for msg in json.loads(msgs)["dmesg"]
         ]
 
 
@@ -28,7 +31,10 @@ class LevelContext(nagiosplugin.Context):
         self.crit_at = crit_at
 
     def evaluate(self, metric: nagiosplugin.Metric, resource: KernelLog):
-        if any(pattern.fullmatch(metric.value["msg"]) is not None for pattern in self.allowed):
+        if any(
+            pattern.fullmatch(metric.value["msg"]) is not None
+            for pattern in self.allowed
+        ):
             _log.info("skipped log line %s because it matched an allow-pattern", metric)
             return nagiosplugin.Result(nagiosplugin.Ok, metric=metric)
         elif metric.value["pri"] in self.crit_at:
@@ -68,23 +74,48 @@ class Summary(nagiosplugin.Summary):
 def main():
     KNOWN_LEVELS = ["emerg", "alert", "crit", "err", "warn", "notice", "info", "debug"]
     argp = argparse.ArgumentParser(
-        description="Check the kernel log for warnings or errors (or log messages in other levels). " +\
-                    "If the kernel has logged a message in one of the priorities given in --wlevel & --clevel, this check outputs WARNING or CRITICAL accordingly. " +\
-                    "This check requires sudo priviliges to call '/usr/bin/dmesg --json --decode'",
+        description="Check the kernel log for warnings or errors (or log messages in other levels). "
+        + "If the kernel has logged a message in one of the priorities given in --wlevel & --clevel, this check outputs WARNING or CRITICAL accordingly. "
+        + "This check requires sudo priviliges to call '/usr/bin/dmesg --json --decode'",
     )
-    argp.add_argument("--wlevel", action="append", default=[], choices=KNOWN_LEVELS,
-                      help="make the check result WARNING if the kernel log contains an entry with this log level (can be given multiple times)")
-    argp.add_argument("--clevel", action="append", default=[], choices=KNOWN_LEVELS,
-                      help="make the check result CRITICAL if the kernel log contains an entry with this log level (can be given multiple times)")
-    argp.add_argument('-v', '--verbose', action='count', default=1,
-                      help='increase output verbosity (use up to 2 times)')
-    argp.add_argument("-a", "--allow", action="append", default=[],
-                      help="a regex for allowed log lines (can be given multiple times)")
+    argp.add_argument(
+        "--wlevel",
+        action="append",
+        default=[],
+        choices=KNOWN_LEVELS,
+        help="make the check result WARNING if the kernel log contains an entry with this log level (can be given multiple times)",
+    )
+    argp.add_argument(
+        "--clevel",
+        action="append",
+        default=[],
+        choices=KNOWN_LEVELS,
+        help="make the check result CRITICAL if the kernel log contains an entry with this log level (can be given multiple times)",
+    )
+    argp.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=1,
+        help="increase output verbosity (use up to 2 times)",
+    )
+    argp.add_argument(
+        "-a",
+        "--allow",
+        action="append",
+        default=[],
+        help="a regex for allowed log lines (can be given multiple times)",
+    )
     args = argp.parse_args()
 
     check = nagiosplugin.Check(
         KernelLog(),
-        LevelContext(name="severities", warn_at=args.wlevel, crit_at=args.clevel, allowed=args.allow),
+        LevelContext(
+            name="severities",
+            warn_at=args.wlevel,
+            crit_at=args.clevel,
+            allowed=args.allow,
+        ),
         Summary(),
     )
     check.main(verbose=args.verbose)
