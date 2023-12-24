@@ -1,0 +1,24 @@
+on:
+  push:
+    branches: [main]
+
+jobs:
+  create_archive:
+    name: Create Archive
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: create release.tar.gz
+        run: |
+          tar -cf release.tar -T /dev/null
+          find check_plugins -type f -executable -execdir tar -rf $(realpath release.tar) {} +
+          find notification_plugins -type f -executable -execdir tar -rf $(realpath release.tar) {} +
+          gzip release.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release.tar.gz
+          path: release.tar.gz
+          compression-level: 0
