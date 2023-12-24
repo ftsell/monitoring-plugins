@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+import argparse
+from email.message import EmailMessage
+from smtplib import SMTP, SMTP_SSL
+
+
+def make_message(args) -> EmailMessage:
+    msg = EmailMessage()
+    msg["Subject"] = args.subject
+    msg["From"] = args.from_addr
+    msg["To"] = args.to_addr
+
+    if args.text_plain and args.text_html:
+        msg.set_content(args.text_plain, subtype="plain")
+        msg.add_alternative(args.text_html, subtype="html")
+    elif args.text_plain:
+        msg.set_content(args.text_plain, subtype="plain")
+    else:
+        msg.set_content(args.text_html, subtype="html")
+
+    return msg
+
+
+def send_notification(args):
+    # connect to the server (using correct encryption)
+    if args.connection_encryption in [None, "starttls"]:
+        conn = SMTP(args.host, args.port, args.local_hostname)
+        if args.connection_encryption == "starttls":
+            conn.starttls()
+    else:
+        conn = SMTP_SSL(args.host, args.port, args.local_hostname)
+
+    # perform authentication if required
+    if args.user is not None and args.password is not None:
+        conn.login(args.user, args.password)
+
+    # send the multipart message and quit the connection
+    conn.send_message(make_message(args))
+    conn.quit()
+
+
+if __name__ == "__main__":
+    argp = argparse.ArgumentParser(
+        description="Send a notification via E-Mail by connecting to an SMTP server",
+    )
+    argp.add_argument("--host", required=True, help="The smtp servers hostname")
+    argp.add_argument("--port", type=int, default=25, help="The port on which the smtp server is listening")
+    argp.add_argument("--user", help="Username to authenticate as at the smtp server")
+    argp.add_argument("--password", help="Password to authenticate with at the smtp server")
+    argp.add_argument(
+        "--local-hostname",
+        help="If specified, used as the local host in HELO/EHLO smtp commands. Otherwise the system hostname is used",
+    )
+    encryption = argp.add_mutually_exclusive_group()
+    encryption.add_argument(
+        "--starttls",
+        action="store_const",
+        const="starttls",
+        dest="connection_encryption",
+        help="Use starttls for connection encryption",
+    )
+    encryption.add_argument(
+        "--tls",
+        action="store_const",
+        const="tls",
+        dest="connection_encryption",
+        help="Use tls for connection encryption",
+    )
+    argp.add_argument("--subject", required=True, help="The subject of the e-mail")
+    argp.add_argument("--text-plain", help="Plain-Text message content to send")
+    argp.add_argument("--text-html", help="HTML encoded message content to send")
+    argp.add_argument("--from", dest="from_addr", required=True, help="The sender address")
+    argp.add_argument("--to", dest="to_addr", required=True, help="Where to send the e-mail to")
+    args = argp.parse_args()
+
+    if args.text_plain is None and args.text_html is None:
+        argp.error("at least one of --text-plain or --text-html must be specified")
+
+    if (args.user is not None and args.password is None) or (args.user is None and args.password is not None):
+        argp.error("if --user/--password is specified, the other must be too")
+
+    send_notification(args)
